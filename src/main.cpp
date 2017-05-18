@@ -4,6 +4,13 @@
 #include "PID.h"
 #include <math.h>
 
+#define TARGET_SPEED 40
+
+double Sigmoid(double val, double min, double max){
+  double range = max - min;
+  return range / (1 + exp(-val)) + min;
+}
+
 // for convenience
 using json = nlohmann::json;
 
@@ -32,10 +39,21 @@ int main()
 {
   uWS::Hub h;
 
-  PID pid;
-  // TODO: Initialize the pid variable.
+  // Initialize the pid variable, for both steering angle and speed/throttle
+  PID pid_angle, pid_speed;
+  pid_angle.Init(0.2, 0.004, 3.5);
+  pid_speed.Init(3.0, 0.004, 3.0);
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  // for 60:
+//  pid_angle.Init(0.15, 0.002, 2.5);
+//  pid_speed.Init(2.5, 0.002, 2.5);
+
+
+  // for 50:
+//  pid_angle.Init(0.2, 0.004, 3.5);
+//  pid_speed.Init(3.0, 0.004, 3.0);
+
+  h.onMessage([&pid_angle, &pid_speed](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -47,23 +65,27 @@ int main()
         std::string event = j[0].get<std::string>();
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          double cte = std::stod(j[1]["cte"].get<std::string>());
+          double cte_angle = std::stod(j[1]["cte"].get<std::string>());
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
-          double steer_value;
-          /*
-          * TODO: Calcuate steering value here, remember the steering value is
-          * [-1, 1].
-          * NOTE: Feel free to play around with the throttle and speed. Maybe use
-          * another PID controller to control the speed!
-          */
-          
+          double cte_speed = speed - TARGET_SPEED;
+          double steer_value, speed_value;
+
+          // Compute new steering angle, limit to between -1.0 and 1.0
+          pid_angle.UpdateError(cte_angle);
+          steer_value = Sigmoid(pid_angle.TotalError(), -1.0, 1.0);
+
+          // Compute new speed, limit to between -1.0 and 1.0
+          pid_speed.UpdateError(cte_speed);
+          speed_value = Sigmoid(pid_speed.TotalError(), -1.0, 1.0);
+
           // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+          std::cout << "Angle CTE: " << cte_angle << " Steering Value: " << steer_value << std::endl;
+          std::cout << "Speed CTE: " << cte_speed << " Speed Value: " << speed_value << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = speed_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
