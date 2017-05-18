@@ -6,11 +6,6 @@
 
 #define TARGET_SPEED 40
 
-double Sigmoid(double val, double min, double max){
-  double range = max - min;
-  return range / (1 + exp(-val)) + min;
-}
-
 // for convenience
 using json = nlohmann::json;
 
@@ -39,19 +34,10 @@ int main()
 {
   uWS::Hub h;
 
-  // Initialize the pid variable, for both steering angle and speed/throttle
+  // Initialize the pid variable for both steering angle and speed/throttle
   PID pid_angle, pid_speed;
   pid_angle.Init(0.2, 0.004, 3.5);
   pid_speed.Init(3.0, 0.004, 3.0);
-
-  // for 60:
-//  pid_angle.Init(0.15, 0.002, 2.5);
-//  pid_speed.Init(2.5, 0.002, 2.5);
-
-
-  // for 50:
-//  pid_angle.Init(0.2, 0.004, 3.5);
-//  pid_speed.Init(3.0, 0.004, 3.0);
 
   h.onMessage([&pid_angle, &pid_speed](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -71,13 +57,13 @@ int main()
           double cte_speed = speed - TARGET_SPEED;
           double steer_value, speed_value;
 
-          // Compute new steering angle, limit to between -1.0 and 1.0
+          // Compute new steering angle
           pid_angle.UpdateError(cte_angle);
-          steer_value = Sigmoid(pid_angle.TotalError(), -1.0, 1.0);
+          steer_value = pid_angle.TotalError();
 
-          // Compute new speed, limit to between -1.0 and 1.0
+          // Compute new speed
           pid_speed.UpdateError(cte_speed);
-          speed_value = Sigmoid(pid_speed.TotalError(), -1.0, 1.0);
+          speed_value = pid_speed.TotalError();
 
           // DEBUG
           std::cout << "Angle CTE: " << cte_angle << " Steering Value: " << steer_value << std::endl;
